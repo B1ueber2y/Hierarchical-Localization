@@ -67,6 +67,7 @@ def main(conf: Dict,
          export_dir: Optional[Path] = None,
          matches: Optional[Path] = None,
          features_ref: Optional[Path] = None,
+         exhaustive: bool = False,
          overwrite: bool = False) -> Path:
 
     if isinstance(features, Path) or Path(features).exists():
@@ -90,7 +91,7 @@ def main(conf: Dict,
     else:
         features_ref = [features_ref]
 
-    match_from_paths(conf, pairs, matches, features_q, features_ref, overwrite)
+    match_from_paths(conf, pairs, matches, features_q, features_ref, exhaustive, overwrite)
 
     return matches
 
@@ -122,6 +123,7 @@ def match_from_paths(conf: Dict,
                      match_path: Path,
                      feature_path_q: Path,
                      feature_paths_refs: Path,
+                     exhaustive: bool = False,
                      overwrite: bool = False) -> Path:
     logger.info('Matching local features with configuration:'
                 f'\n{pprint.pformat(conf)}')
@@ -135,10 +137,25 @@ def match_from_paths(conf: Dict,
                 for n in list_h5_names(p)}
     match_path.parent.mkdir(exist_ok=True, parents=True)
 
-    assert pairs_path.exists(), pairs_path
-    pairs = parse_retrieval(pairs_path)
-    pairs = [(q, r) for q, rs in pairs.items() for r in rs]
-    pairs = find_unique_new_pairs(pairs, None if overwrite else match_path)
+    if not exhaustive:
+        assert pairs_path.exists(), pairs_path
+        pairs = parse_retrieval(pairs_path)
+        pairs = [(q, r) for q, rs in pairs.items() for r in rs]
+        pairs = find_unique_new_pairs(pairs, None if overwrite else match_path)
+    else:
+        logger.info(f'Writing exhaustive match pairs to {pairs_path}.')
+        assert not pairs_path.exists(), pairs_path
+        names_q = list_h5_names(feature_path_q)
+        # TODO: move exhqustive pair generation to a standalone script
+        # detect self-matching
+        if (len(feature_paths_refs) == 1
+                and feature_path_q == feature_paths_refs[0]):
+            pairs = [(n1, n2) for i, n1 in enumerate(names_q)
+                     for n2 in names_q[:i]]
+        else:
+            pairs = [(n1, n2) for n1 in names_q for n2 in name2ref.keys()]
+        with open(pairs_path, 'w') as f:
+            f.write('\n'.join(' '.join((n1, n2)) for n1, n2 in pairs))
     if len(pairs) == 0:
         logger.info('Skipping the matching.')
         return

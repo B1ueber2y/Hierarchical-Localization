@@ -23,7 +23,8 @@ def create_empty_db(database_path):
     db.close()
 
 
-def import_images(image_dir, database_path, camera_mode, image_list=None):
+def import_images(image_dir, database_path,
+                  camera_mode=pycolmap.CameraMode.AUTO, image_list=None):
     logger.info('Importing images into the database...')
     images = list(image_dir.iterdir())
     if len(images) == 0:
